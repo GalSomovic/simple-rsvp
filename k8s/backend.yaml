@@ -39,7 +39,7 @@ spec:
               value: IL
             # Single public origin (frontend hostname) — Twilio reaches /webhooks/* and /media/* here.
             - name: PUBLIC_BASE_URL
-              value: https://rsvp.example.com
+              value: https://rsvp.galsgames.dpdns.org
           envFrom:
             - secretRef:
                 name: rsvp-backend # ACCESS_CODE, TWILIO_* (see secrets.example.yaml)
