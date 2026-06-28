@@ -1,0 +1,102 @@
+# Postgres persists onto the node's local disk via the cluster's static
+# `local-disk` PV (10Gi, local path /var on talos-aq5-onz). There is no dynamic
+# provisioner on this single-node Talos cluster, so the PV is declared here and the
+# PVC binds to it by name. (The PV already exists on the cluster — freed from the
+# removed fivem app — this manifest just keeps it reproducible.)
+apiVersion: v1
+kind: PersistentVolume
+metadata:
+  name: local-disk-pv
+spec:
+  capacity:
+    storage: 10Gi
+  accessModes: ["ReadWriteOnce"]
+  persistentVolumeReclaimPolicy: Retain
+  storageClassName: local-disk
+  local:
+    path: /var
+  nodeAffinity:
+    required:
+      nodeSelectorTerms:
+        - matchExpressions:
+            - key: kubernetes.io/hostname
+              operator: In
+              values: ["talos-aq5-onz"]
+---
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: rsvp-postgres
+  namespace: wedding-rsvp
+spec:
+  accessModes: ["ReadWriteOnce"]
+  storageClassName: local-disk
+  volumeName: local-disk-pv # bind to the specific local PV above
+  resources:
+    requests:
+      storage: 10Gi
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rsvp-postgres
+  namespace: wedding-rsvp
+spec:
+  replicas: 1
+  strategy:
+    type: Recreate
+  selector:
+    matchLabels:
+      app: rsvp-postgres
+  template:
+    metadata:
+      labels:
+        app: rsvp-postgres
+    spec:
+      # The only node is a control-plane node with a NoSchedule taint.
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: postgres
+          image: postgres:16-alpine
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: rsvp
+            - name: POSTGRES_DB
+              value: rsvp
+            - name: POSTGRES_PASSWORD
+              valueFrom:
+                secretKeyRef:
+                  name: rsvp-postgres
+                  key: password
+            # Data lives in a subdir of the mounted volume (node's /var).
+            - name: PGDATA
+              value: /var/lib/postgresql/data/pgdata
+          volumeMounts:
+            - name: data
+              mountPath: /var/lib/postgresql/data
+          readinessProbe:
+            exec:
+              command: ["pg_isready", "-U", "rsvp"]
+            initialDelaySeconds: 5
+            periodSeconds: 10
+      volumes:
+        - name: data
+          persistentVolumeClaim:
+            claimName: rsvp-postgres
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rsvp-postgres
+  namespace: wedding-rsvp
+spec:
+  selector:
+    app: rsvp-postgres
+  ports:
+    - port: 5432
+      targetPort: 5432

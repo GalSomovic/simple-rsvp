@@ -1,0 +1,43 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: rsvp-frontend
+  namespace: wedding-rsvp
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: rsvp-frontend
+  template:
+    metadata:
+      labels:
+        app: rsvp-frontend
+    spec:
+      tolerations:
+        - key: node-role.kubernetes.io/control-plane
+          operator: Exists
+          effect: NoSchedule
+      containers:
+        - name: frontend
+          image: ghcr.io/galsomovic/simple-rsvp-frontend:latest
+          imagePullPolicy: Always
+          ports:
+            - containerPort: 80
+          readinessProbe:
+            httpGet:
+              path: /
+              port: 80
+            initialDelaySeconds: 3
+            periodSeconds: 10
+---
+apiVersion: v1
+kind: Service
+metadata:
+  name: rsvp-frontend
+  namespace: wedding-rsvp
+spec:
+  selector:
+    app: rsvp-frontend
+  ports:
+    - port: 80
+      targetPort: 80

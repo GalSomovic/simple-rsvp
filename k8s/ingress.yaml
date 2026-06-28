@@ -1,0 +1,19 @@
+# Ingress on this cluster is a Cloudflare Tunnel (cloudflared running in the
+# `default` namespace, token-based). A token tunnel is configured REMOTELY in the
+# Cloudflare Zero Trust dashboard — there is no in-cluster ingress config file and
+# no Ingress controller, so there is no manifest to apply here.
+#
+# To expose this app, add a Public Hostname to the tunnel in the dashboard:
+#   Zero Trust -> Networks -> Tunnels -> (your tunnel) -> Public Hostnames -> Add
+#
+#     Subdomain/hostname : rsvp.<your-domain>
+#     Service type       : HTTP
+#     URL                : rsvp-frontend.wedding-rsvp.svc.cluster.local:80
+#
+# cloudflared resolves that in-cluster FQDN via CoreDNS even though it runs in the
+# `default` namespace. The frontend nginx then proxies /api, /media and /webhooks
+# to the backend, so this single hostname serves the dashboard AND Twilio's
+# webhooks. Set PUBLIC_BASE_URL in backend.yaml to https://rsvp.<your-domain>.
+#
+# (If you ever move the tunnel into the cluster via deployments/cloudflare-tunnel,
+#  the same Public Hostname -> Service mapping applies.)
